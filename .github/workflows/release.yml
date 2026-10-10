@@ -1,0 +1,43 @@
+name: Release -> update version.json
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Write version.json
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          BODY: ${{ github.event.release.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 << 'EOF'
+          import os, json, re
+          tag = os.environ["TAG"]
+          ver = re.sub(r'[^0-9.]', '', tag)
+          url = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}/CRG_FloatFire_Pack.zip"
+          note = (os.environ.get("BODY") or "").strip()[:400]
+          with open("version.json", "w", encoding="utf-8") as f:
+              json.dump({"version": ver, "url": url, "note": note}, f, ensure_ascii=False, indent=2)
+          print("version.json ->", ver, url)
+          EOF
+
+      - name: Commit & push version.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --cached --quiet || git commit -m "chore: version.json -> ${{ github.event.release.tag_name }}"
+          git push
